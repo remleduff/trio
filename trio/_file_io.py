@@ -124,11 +124,14 @@ async def open_file(file, mode='r', buffering=-1, encoding=None, errors=None,
 
     Example::
 
-        async with await trio.open_file(filename) as f:
-            async for line in f:
-                pass
+    >>> async def open_test(filename):
+    ...     async with await trio.open_file(filename) as f:
+    ...         async for line in f:
+    ...             pass
+    ...
+    ...     assert f.closed
 
-        assert f.closed
+    >>> trio.run(open_test, __file__)
 
     """
     # python3.5 compat
@@ -152,9 +155,14 @@ def wrap_file(file):
 
     Example::
 
-        async_file = trio.wrap_file(StringIO('asdf'))
+    >>> from io import StringIO
 
-        assert await async_file.read() == 'asdf'
+    >>> async def wrap_test():
+    ...     async_file = trio.wrap_file(StringIO('asdf'))
+    ...
+    ...     assert await async_file.read() == 'asdf'
+
+    >>> trio.run(wrap_test)
 
     """
 

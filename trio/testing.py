@@ -282,8 +282,11 @@ def assert_yields():
       Check that :func:`trio.sleep` is a checkpoint, even if it doesn't
       block::
 
-         with trio.testing.assert_yields():
-             await trio.sleep(0)
+      >>> async def test_yields():
+      ...    with trio.testing.assert_yields():
+      ...        await trio.sleep(0)
+
+      >>> trio.run(test_yields)
 
     """
     __tracebackhide__ = True
@@ -299,9 +302,12 @@ def assert_no_yields():
     Example:
       Synchronous code never yields, but we can double-check that::
 
-         queue = trio.Queue(10)
-         with trio.testing.assert_no_yields():
-             queue.put_nowait(None)
+      >>> async def test_no_yields():
+      ...     queue = trio.Queue(10)
+      ...     with trio.testing.assert_no_yields():
+      ...         queue.put_nowait(None)
+
+      >>> trio.run(test_no_yields)
 
     """
     __tracebackhide__ = True
@@ -326,30 +332,38 @@ class Sequencer:
     Example:
       An extremely elaborate way to print the numbers 0-5, in order::
 
-         async def worker1(seq):
-             async with seq(0):
-                 print(0)
-             async with seq(4):
-                 print(4)
+      >>> async def worker1(seq):
+      ...     async with seq(0):
+      ...         print(0)
+      ...     async with seq(4):
+      ...         print(4)
 
-         async def worker2(seq):
-             async with seq(2):
-                 print(2)
-             async with seq(5):
-                 print(5)
+      >>> async def worker2(seq):
+      ...     async with seq(2):
+      ...         print(2)
+      ...     async with seq(5):
+      ...         print(5)
 
-         async def worker3(seq):
-             async with seq(1):
-                 print(1)
-             async with seq(3):
-                 print(3)
+      >>> async def worker3(seq):
+      ...     async with seq(1):
+      ...         print(1)
+      ...     async with seq(3):
+      ...         print(3)
 
-         async def main():
-            seq = trio.testing.Sequencer()
-            async with trio.open_nursery() as nursery:
-                nursery.spawn(worker1, seq)
-                nursery.spawn(worker2, seq)
-                nursery.spawn(worker3, seq)
+      >>> async def main():
+      ...    seq = trio.testing.Sequencer()
+      ...    async with trio.open_nursery() as nursery:
+      ...        nursery.spawn(worker1, seq)
+      ...        nursery.spawn(worker2, seq)
+      ...        nursery.spawn(worker3, seq)
+
+      >>> trio.run(main)
+      0
+      1
+      2
+      3
+      4
+      5
 
     """
 
