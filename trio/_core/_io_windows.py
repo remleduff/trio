@@ -290,7 +290,7 @@ class WindowsIOManager:
     @_public
     @_hazmat
     async def wait_overlapped(self, handle, lpOverlapped):
-        handle = _handle(obj)
+        handle = _handle(handle)
         if isinstance(lpOverlapped, int):
             lpOverlapped = ffi.cast("LPOVERLAPPED", lpOverlapped)
         if lpOverlapped in self._overlapped_waiters:

@@ -14,6 +14,8 @@ typedef unsigned long ULONG;
 typedef unsigned long u_long;
 typedef ULONG *PULONG;
 
+#define GENERIC_READ ...
+
 typedef uintptr_t ULONG_PTR;
 typedef uintptr_t UINT_PTR;
 
@@ -50,6 +52,13 @@ HANDLE WINAPI CreateIoCompletionPort(
   _In_     ULONG_PTR CompletionKey,
   _In_     DWORD     NumberOfConcurrentThreads
 );
+
+// kernel32.dll
+HANDLE WINAPI ReOpenFile(
+  _In_ HANDLE hOriginalFile,
+  _In_ DWORD  dwDesiredAccess,
+  _In_ DWORD  dwShareMode,
+  _In_ DWORD  dwFlags );
 
 BOOL WINAPI CloseHandle(
   _In_ HANDLE hObject

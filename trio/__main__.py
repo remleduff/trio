@@ -7,5 +7,7 @@ _hook =  getattr(sys, "__interactivehook__", None)
 
 if _hook:
     _hook()
+del _hook
+del sys
 
 trio.run(trio.code.interact, locals())

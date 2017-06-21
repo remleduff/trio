@@ -2,12 +2,16 @@
 import ast
 import inspect
 import sys
+import traceback
 
 from ast import Expr, NameConstant, Tuple, Await, Return, Load
 from code import InteractiveConsole
 from codeop import CommandCompiler, Compile, _features
 from textwrap import indent, dedent
 
+from . import _core
+
+from ._timeouts import sleep
 from ._threads import run_in_worker_thread
 
 __all__ = ['interact', 'async_exec']
@@ -58,11 +62,11 @@ def _asyncify(code):
                     is the value of the last expression of ``code``
     """
     return dedent("""
-        async def phony():
+        async def module():
         {usercode}
             return locals()
 
-        coro_ret = phony(**user_ns)
+        coro_ret = module(**user_ns)
         """).format(usercode=indent(code,' '*4))
 
 
@@ -139,7 +143,7 @@ async def _async_exec(code_obj, user_ns):
 
     """
     loop_ns = {'user_ns': user_ns, 'last_expr':None}
-    exec(code_obj, loop_ns)
+    exec(code_obj, globals(), loop_ns)
     coro_ret = loop_ns['coro_ret']
     post_loop_user_ns, last_expr = await coro_ret
     if post_loop_user_ns == loop_ns:
@@ -172,7 +176,7 @@ class AsyncCompiler(Compile):
 
 class AsyncInteractiveConsole(InteractiveConsole):
 
-    async def interact(self, banner=None, exitmsg=None, *, ps1=None, ps2=None):
+    async def interact(self, banner=None, exitmsg=None, ps1=None, ps2=None):
         """Closely emulate the interactive Python console.
         The optional banner argument specifies the banner to print
         before the first interaction; by default it prints a banner
@@ -235,7 +239,12 @@ class AsyncInteractiveConsole(InteractiveConsole):
 
 
     async def raw_input(self, prompt=""):
-        return await run_in_worker_thread(input, prompt)
+        # We can't currently Ctrl-C input in the worker thread, but if we
+        # add a checkpoint, we at least let "Ctrl-C, Enter" work to cancel
+        # bad input
+        line = await run_in_worker_thread(input, prompt)
+        await sleep(0)
+        return line
 
 
     async def runsource(self, source, filename="<input>", symbol="single"):
@@ -291,11 +300,19 @@ class AsyncInteractiveConsole(InteractiveConsole):
     
 def _code_namespace():
     stack = inspect.stack()
-    caller = stack[-1].frame
+    # Stack frames to skip: [ _code_namespace, (interact or async_exec), trio_internals, user_code ]
+    caller = stack[4].frame
     return caller.f_locals
 
 
 async def async_exec(source, filename="<input>", namespace=None, flags=0, dont_inherit=0):
+    """Similar to Python's exec statement, but allows execution of async code
+
+    Example::
+
+        async def foo(l):
+            await trio.code.async_exec("await l.acquire()")
+    """
     if namespace is None:
         namespace = _code_namespace()
     codeob = _async_compile(source, filename, namespace.keys(), flags=flags, dont_inherit=dont_inherit)
@@ -305,14 +322,54 @@ async def async_exec(source, filename="<input>", namespace=None, flags=0, dont_i
 _default_banner = """
 Trio Async Console
 Type "help", "copyright", "credits" or "license" for more information.
+
+A nursery has been created for you, named "nursery".
+
+Try:
+  >>> await trio.sleep(5)
+  >>> async def foo():
+  ...    await trio.sleep(5)
+  ...    print("Done")
+  ...
+  >>> nursery.spawn(foo)
+  >>> nursery.cancel_scope.cancel()
+
+Have fun!
 """
 
-async def interact(namespace=None, banner=_default_banner, ps1="(async) >>> ", ps2="        ... "):
+_default_exit = """
+now exiting Trio Console...
+"""
+
+async def interact(namespace=None, banner=_default_banner,
+                   exitmsg=_default_exit, ps1="(async) >>> ", ps2="        ... "):
+    """Convenience function to run a read-eval-print loop.
+    The resulting REPL is in an async context and allows executing arbitrary
+    async code, ie:
+
+    Example::
+
+        trio.run(trio.code.interact)
+
+    Trio Async Console
+    Type "help", "copyright", "credits" or "license" for more information.
+    
+    (async) >>> l = trio.Lock()
+    (async) >>> await l.acquire()
+    (async) >>> l.locked()
+    True
+    (async) >>> l.release()
+    (async) >>> 
+    now exiting AsyncInteractiveConsole...
+    """
     if namespace is None:
         namespace = _code_namespace()
     compiler = CommandCompiler()
     compiler.compiler = AsyncCompiler(namespace)
     console = AsyncInteractiveConsole(namespace)
     console.compile = compiler
-    await console.interact(banner=banner, ps1=ps1, ps2=ps2)
+    async with _core.open_nursery() as nursery:
+        namespace['nursery'] = nursery
+        with _core.open_cancel_scope(shield=True):
+            await console.interact(banner, exitmsg, ps1, ps2)
 
