@@ -1079,30 +1079,29 @@ class Runner:
           >>> async def lock_taker(lock):
           ...     await lock.acquire()
           ...     lock.release()
-          >>> async def test_lock_fairness():
-          ...     lock = trio.Lock()
-          ...     await lock.acquire()
-          ...     async with trio.open_nursery() as nursery:
-          ...         child = nursery.spawn(lock_taker, lock)
-          ...         # child hasn't run yet, we have the lock
-          ...         assert lock.locked()
-          ...         assert lock._owner is trio.current_task()
-          ...         await trio.testing.wait_all_tasks_blocked()
-          ...         # now the child has run and is blocked on lock.acquire(), we
-          ...         # still have the lock
-          ...         assert lock.locked()
-          ...         assert lock._owner is trio.current_task()
-          ...         lock.release()
-          ...         try:
-          ...             # The child has a prior claim, so we can't have it
-          ...             lock.acquire_nowait()
-          ...         except trio.WouldBlock:
-          ...             assert lock._owner is child
-          ...             return True
-          ...         else:
-          ...             return False
-          >>> trio.run(test_lock_fairness)
-          True
+
+          ... lock = trio.Lock()
+          ... await lock.acquire()
+          ... async with trio.open_nursery() as nursery:
+          ...     child = nursery.spawn(lock_taker, lock)
+          ...     # child hasn't run yet, we have the lock
+          ...     assert lock.locked()
+          ...     assert lock._owner is trio.current_task()
+          ...     await trio.testing.wait_all_tasks_blocked()
+          ...     # now the child has run and is blocked on lock.acquire(), we
+          ...     # still have the lock
+          ...     assert lock.locked()
+          ...     assert lock._owner is trio.current_task()
+          ...     lock.release()
+          ...     try:
+          ...         # The child has a prior claim, so we can't have it
+          ...         lock.acquire_nowait()
+          ...     except trio.WouldBlock:
+          ...         assert lock._owner is child
+          ...         return True
+          ...     else:
+          ...         return False
+          False
         """
         task = current_task()
         key = (cushion, tiebreaker, id(task))

@@ -282,11 +282,8 @@ def assert_yields():
       Check that :func:`trio.sleep` is a checkpoint, even if it doesn't
       block::
 
-      >>> async def test_yields():
-      ...    with trio.testing.assert_yields():
-      ...        await trio.sleep(0)
-
-      >>> trio.run(test_yields)
+      >>> with trio.testing.assert_yields():
+      ...     await trio.sleep(0)
 
     """
     __tracebackhide__ = True
@@ -302,12 +299,9 @@ def assert_no_yields():
     Example:
       Synchronous code never yields, but we can double-check that::
 
-      >>> async def test_no_yields():
-      ...     queue = trio.Queue(10)
-      ...     with trio.testing.assert_no_yields():
-      ...         queue.put_nowait(None)
-
-      >>> trio.run(test_no_yields)
+      >>> queue = trio.Queue(10)
+      ... with trio.testing.assert_no_yields():
+      ...     queue.put_nowait(None)
 
     """
     __tracebackhide__ = True
@@ -350,14 +344,11 @@ class Sequencer:
       ...     async with seq(3):
       ...         print(3)
 
-      >>> async def main():
-      ...    seq = trio.testing.Sequencer()
-      ...    async with trio.open_nursery() as nursery:
-      ...        nursery.spawn(worker1, seq)
-      ...        nursery.spawn(worker2, seq)
-      ...        nursery.spawn(worker3, seq)
-
-      >>> trio.run(main)
+      >>> seq = trio.testing.Sequencer()
+      ... async with trio.open_nursery() as nursery:
+      ...     nursery.spawn(worker1, seq)
+      ...     nursery.spawn(worker2, seq)
+      ...     nursery.spawn(worker3, seq)
       0
       1
       2
